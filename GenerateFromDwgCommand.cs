@@ -335,6 +335,8 @@ namespace RevitViewPlacer
             WpfGrid.SetRow(_logTextBox, 5);
             mainGrid.Children.Add(_logTextBox);
 
+            Content = mainGrid;
+
             PreviewKeyDown += (_, e) =>
             {
                 if (e.Key == Key.F5)
