@@ -210,7 +210,7 @@ print('Количество стен в модели:', len(walls))
             Button runButton = new Button
             {
                 Content = "▶ Запустить скрипт (F5)",
-                Width = 190,
+                Width = 180,
                 Height = 34,
                 FontWeight = FontWeights.SemiBold,
                 FontSize = 13,
@@ -218,22 +218,37 @@ print('Количество стен в модели:', len(walls))
                 Foreground = Brushes.White,
                 BorderThickness = new Thickness(0),
                 Cursor = Cursors.Hand,
-                Margin = new Thickness(0, 0, 10, 0)
+                Margin = new Thickness(0, 0, 8, 0)
             };
             runButton.Click += (_, _) => ExecutePythonScript();
 
+            Button loadDwgScriptButton = new Button
+            {
+                Content = "📐 Загрузить DWG to BIM",
+                Width = 200,
+                Height = 34,
+                FontWeight = FontWeights.SemiBold,
+                FontSize = 12.5,
+                Background = new SolidColorBrush(System.Windows.Media.Color.FromRgb(37, 99, 235)),
+                Foreground = Brushes.White,
+                BorderThickness = new Thickness(0),
+                Cursor = Cursors.Hand,
+                Margin = new Thickness(0, 0, 8, 0)
+            };
+            loadDwgScriptButton.Click += (_, _) => LoadDwgScript();
+
             Button clearOutputButton = new Button
             {
-                Content = "Очистить",
-                Width = 120,
+                Content = "Очистить консоль",
+                Width = 140,
                 Height = 34,
-                FontSize = 13,
+                FontSize = 12.5,
                 Background = new SolidColorBrush(System.Windows.Media.Color.FromRgb(226, 232, 240)),
                 Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(30, 41, 59)),
                 BorderBrush = new SolidColorBrush(System.Windows.Media.Color.FromRgb(148, 163, 184)),
                 BorderThickness = new Thickness(1),
                 Cursor = Cursors.Hand,
-                Margin = new Thickness(0, 0, 10, 0)
+                Margin = new Thickness(0, 0, 8, 0)
             };
             clearOutputButton.Click += (_, _) =>
             {
@@ -247,9 +262,9 @@ print('Количество стен в модели:', len(walls))
             Button clearCodeButton = new Button
             {
                 Content = "Очистить код",
-                Width = 120,
+                Width = 110,
                 Height = 34,
-                FontSize = 13,
+                FontSize = 12.5,
                 Background = new SolidColorBrush(System.Windows.Media.Color.FromRgb(226, 232, 240)),
                 Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(30, 41, 59)),
                 BorderBrush = new SolidColorBrush(System.Windows.Media.Color.FromRgb(148, 163, 184)),
@@ -263,6 +278,7 @@ print('Количество стен в модели:', len(walls))
             };
 
             buttonsLeft.Children.Add(runButton);
+            buttonsLeft.Children.Add(loadDwgScriptButton);
             buttonsLeft.Children.Add(clearOutputButton);
             buttonsLeft.Children.Add(clearCodeButton);
             DockPanel.SetDock(buttonsLeft, Dock.Left);
@@ -435,6 +451,41 @@ print('Количество стен в модели:', len(walls))
         {
             _outputTextBox.AppendText(text);
             _outputTextBox.ScrollToEnd();
+        }
+
+        private void LoadDwgScript()
+        {
+            try
+            {
+                string? pluginDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
+                string candidatePath = "";
+                if (!string.IsNullOrEmpty(pluginDir))
+                {
+                    candidatePath = Path.Combine(pluginDir, "DwgToBimGenerator.py");
+                }
+
+                if (!File.Exists(candidatePath))
+                {
+                    // Проверяем папку проекта
+                    string currentDir = AppDomain.CurrentDomain.BaseDirectory;
+                    candidatePath = Path.Combine(currentDir, "DwgToBimGenerator.py");
+                }
+
+                if (File.Exists(candidatePath))
+                {
+                    _codeTextBox.Text = File.ReadAllText(candidatePath, Encoding.UTF8);
+                    _statusTextBlock.Text = "Скрипт DWG to BIM успешно загружен!";
+                    AppendOutput("[Инфо] Загружен скрипт DwgToBimGenerator.py. Нажмите F5 или кнопку запуска.\r\n");
+                }
+                else
+                {
+                    AppendOutput("[Предупреждение] Файл DwgToBimGenerator.py не найден рядом со сборкой плагина.\r\n");
+                }
+            }
+            catch (Exception ex)
+            {
+                AppendOutput($"[Ошибка загрузки скрипта]: {ex.Message}\r\n");
+            }
         }
     }
 }

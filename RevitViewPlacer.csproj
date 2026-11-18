@@ -46,6 +46,7 @@
     <Copy SourceFiles="$(ProjectDir)Лист (Форма3).rfa" DestinationFolder="$(RevitAddinsDir)\RevitViewPlacer" SkipUnchangedFiles="false" ContinueOnError="true" />
     <Copy SourceFiles="$(ProjectDir)Лист_(Форма3)без_надписи.rfa" DestinationFolder="$(RevitAddinsDir)\RevitViewPlacer" SkipUnchangedFiles="false" ContinueOnError="true" />
     <Copy SourceFiles="$(ProjectDir)ADSK_Марка_Помещение_ДваЗначения.rfa" DestinationFolder="$(RevitAddinsDir)\RevitViewPlacer" SkipUnchangedFiles="false" ContinueOnError="true" />
+    <Copy SourceFiles="$(ProjectDir)DwgToBimGenerator.py" DestinationFolder="$(RevitAddinsDir)\RevitViewPlacer" SkipUnchangedFiles="false" ContinueOnError="true" />
     <Copy SourceFiles="@(OutputDlls)" DestinationFolder="$(RevitAddinsDir)\RevitViewPlacer" SkipUnchangedFiles="false" ContinueOnError="true" />
   </Target>
 
