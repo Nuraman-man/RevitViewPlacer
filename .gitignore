@@ -1,0 +1,23 @@
+# Build results
+[Bb]in/
+[Oo]bj/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+
+# Visual Studio / Rider / IDE files
+.vs/
+.idea/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Temporary build distribution staging folder
+RevitViewPlacer_Setup/
+test_app*/
+test_api*.cs
+wait_and_copy.ps1
+*.dll.old*
+*.bak

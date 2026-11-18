@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<RevitAddIns>
+  <AddIn Type="Application">
+    <Name>Панель авторазмещения видов АР и Генплана</Name>
+    <Assembly>RevitViewPlacer\RevitViewPlacer.dll</Assembly>
+    <AddInId>D4E8A12F-3B79-4C61-8E94-5F102C7A3B81</AddInId>
+    <FullClassName>RevitViewPlacer.App</FullClassName>
+    <VendorId>RevitViewPlacer</VendorId>
+    <VendorDescription>RevitViewPlacer</VendorDescription>
+  </AddIn>
+  <AddIn Type="Command">
+    <Name>Авторазмещение видов на листы</Name>
+    <Assembly>RevitViewPlacer\RevitViewPlacer.dll</Assembly>
+    <AddInId>7B3C9E41-5A28-4F19-A863-1D940E2B5C74</AddInId>
+    <FullClassName>RevitViewPlacer.PlaceViewsCommand</FullClassName>
+    <Text>Авторазмещение видов на листы (А3)</Text>
+    <Description>Автоматическая расстановка видов и экспликаций на листы формата А3 (Форма 3).</Description>
+    <VendorId>RevitViewPlacer</VendorId>
+    <VendorDescription>RevitViewPlacer</VendorDescription>
+  </AddIn>
+  <AddIn Type="Command">
+    <Name>Генерация детального генплана ГП-1</Name>
+    <Assembly>RevitViewPlacer\RevitViewPlacer.dll</Assembly>
+    <AddInId>3F9A2C85-1E64-4B73-9C18-8A54D7E21F09</AddInId>
+    <FullClassName>RevitViewPlacer.GenerateDetailedSitePlanCommand</FullClassName>
+    <Text>Детальный генплан ГП-1 (Оси, Парковка, ТЭП)</Text>
+    <Description>Построение сетки координатных осей, отмостки, проезда, парковочных мест 2.5x5.0 м, газона и вынос на лист ГП-1.</Description>
+    <VendorId>RevitViewPlacer</VendorId>
+    <VendorDescription>RevitViewPlacer</VendorDescription>
+  </AddIn>
+  <AddIn Type="Command">
+    <Name>Марки помещений ADSK</Name>
+    <Assembly>RevitViewPlacer\RevitViewPlacer.dll</Assembly>
+    <AddInId>A5C8E192-4D3B-4E7F-98A1-6F20D3C5B782</AddInId>
+    <FullClassName>RevitViewPlacer.ReplaceRoomTagsCommand</FullClassName>
+    <Text>Марки помещений ADSK (Замена и простановка)</Text>
+    <Description>Загрузка семейства ADSK_Марка_Помещение_ДваЗначения и пакетная замена марок помещений по ГОСТ РК.</Description>
+    <VendorId>RevitViewPlacer</VendorId>
+    <VendorDescription>RevitViewPlacer</VendorDescription>
+  </AddIn>
+</RevitAddIns>

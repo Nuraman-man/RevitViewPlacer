@@ -1,0 +1,45 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <PlatformTarget>x64</PlatformTarget>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+    <ResolveAssemblyWarnOrErrorOnTargetArchitectureMismatch>None</ResolveAssemblyWarnOrErrorOnTargetArchitectureMismatch>
+    <NoWarn>$(NoWarn);MSB3277</NoWarn>
+    <RevitInstallDir Condition="'$(RevitInstallDir)' == ''">C:\Program Files\Autodesk\Revit 2026</RevitInstallDir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Лист (Форма3).rfa" LogicalName="RevitViewPlacer.TitleBlockA3.rfa" />
+    <EmbeddedResource Include="Лист_(Форма3)без_надписи.rfa" LogicalName="RevitViewPlacer.TitleBlockCover.rfa" />
+    <EmbeddedResource Include="ADSK_Марка_Помещение_ДваЗначения.rfa" LogicalName="RevitViewPlacer.RoomTagADSK.rfa" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="RevitAPI">
+      <HintPath>$(RevitInstallDir)\RevitAPI.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="RevitAPIUI">
+      <HintPath>$(RevitInstallDir)\RevitAPIUI.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+  </ItemGroup>
+
+  <Target Name="DeployToRevitAddins" AfterTargets="Build" Condition="'$(DeployAddin)' != 'false'">
+    <PropertyGroup>
+      <RevitAddinsDir>$(AppData)\Autodesk\Revit\Addins\2026</RevitAddinsDir>
+    </PropertyGroup>
+    <MakeDir Directories="$(RevitAddinsDir)\RevitViewPlacer" />
+    <Copy SourceFiles="$(ProjectDir)RevitViewPlacer.addin" DestinationFolder="$(RevitAddinsDir)" SkipUnchangedFiles="false" ContinueOnError="true" />
+    <Copy SourceFiles="$(ProjectDir)Лист (Форма3).rfa" DestinationFolder="$(RevitAddinsDir)\RevitViewPlacer" SkipUnchangedFiles="false" ContinueOnError="true" />
+    <Copy SourceFiles="$(ProjectDir)Лист_(Форма3)без_надписи.rfa" DestinationFolder="$(RevitAddinsDir)\RevitViewPlacer" SkipUnchangedFiles="false" ContinueOnError="true" />
+    <Copy SourceFiles="$(ProjectDir)ADSK_Марка_Помещение_ДваЗначения.rfa" DestinationFolder="$(RevitAddinsDir)\RevitViewPlacer" SkipUnchangedFiles="false" ContinueOnError="true" />
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(RevitAddinsDir)\RevitViewPlacer" SkipUnchangedFiles="false" ContinueOnError="true" />
+  </Target>
+
+</Project>
