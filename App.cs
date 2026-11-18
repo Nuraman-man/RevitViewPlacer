@@ -72,6 +72,15 @@ namespace RevitViewPlacer
                     ToolTip = "Оформляет активный вид по ГОСТ 21.501-93: расставляет высотные отметки и линию земли внутри вида, убирает мусор и настраивает подрезку."
                 };
 
+                PushButtonData generateFromDwgBtnData = new PushButtonData(
+                    name: "GenerateFromDwgButton",
+                    text: "Чертить по DWG\n(BIM Модель)",
+                    assemblyName: assemblyPath,
+                    className: typeof(GenerateFromDwgCommand).FullName!)
+                {
+                    ToolTip = "Мастер автоматического построения здания по подложке DWG: выбор слоев осей, стен, проемов, дверей, окон, ступеней и ограждений."
+                };
+
                 PushButtonData pythonRunnerBtnData = new PushButtonData(
                     name: "PythonScriptRunnerButton",
                     text: "Python Скрипт\n(pyRevit / API)",
@@ -81,6 +90,7 @@ namespace RevitViewPlacer
                     ToolTip = "Открывает интерактивную консоль IronPython для вставки и запуска Python-скриптов (формата pyRevit / RevitPythonShell) с глобальными переменными __revit__, uidoc и doc."
                 };
 
+                panel.AddItem(generateFromDwgBtnData);
                 panel.AddItem(placeViewsBtnData);
                 panel.AddItem(sitePlanBtnData);
                 panel.AddItem(roomTagBtnData);

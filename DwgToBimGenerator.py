@@ -52,6 +52,12 @@ LAYER_KEYWORDS = {
     'RAILINGS': ['огражден', 'перил', 'railing', 'handrail', 'a-flor-hrl']
 }
 
+# Если переданы кастомные настройки маппинга слоев из окна мастера (UI)
+if 'CUSTOM_LAYER_KEYWORDS' in globals() and isinstance(CUSTOM_LAYER_KEYWORDS, dict):
+    for k, v in CUSTOM_LAYER_KEYWORDS.items():
+        if v and len(v) > 0:
+            LAYER_KEYWORDS[k] = list(v)
+
 MM_TO_FEET = 1.0 / 304.8
 FEET_TO_MM = 304.8
 
