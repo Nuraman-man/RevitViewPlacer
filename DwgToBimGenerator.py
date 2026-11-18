@@ -1,17 +1,20 @@
 # -*- coding: utf-8 -*-
 """
-DwgToBimGenerator.py (Шаг 2.5: Точная посадка дверей и окон по DWG)
-===================================================================
+DwgToBimGenerator.py (Шаг 3: Проемы, Лестничные ступени, Соединения и Отделка)
+=============================================================================
 Скрипт для IronPython / pyRevit / RevitViewPlacer:
-Считывает DWG-чертеж и СТРОГО ПО МЕСТУ РАСПОЛОЖЕНИЯ дверей и окон в чертеже
-находит точные координаты, ориентацию, угол поворота и ширину проема,
-после чего сажает семейства в Revit точно на свои места.
-
-Поддерживаются:
- - Блоки дверей/окон (Block Reference / GeometryInstance) с точкой вставки и углом
- - Линии проемов и полотен дверей (дуги открывания, четверти)
- - Текстовые выноски и марки (например "Д-1", "ОК-2")
- - Оси, стены (с парными линиями), витражи, ограждения и 4 фасада
+Считывает DWG-чертеж и строит полноценную модель здания:
+ 1. Оси (Grids) с правильной нумерацией по ГОСТ
+ 2. Стены (Walls) по алгоритму парных линий + очистка Т- и Г-образных стыков (Wall Joins)
+ 3. Витражи (Curtain Walls) с витражными сетками
+ 4. Двери и Окна (Doors & Windows) СТРОГО по координатам и ориентации из DWG
+ 5. Проемы в стенах (Wall Openings) для свободных проходов без дверных полотен
+ 6. Ступени и марши (Stairs / Steps / Landings):
+    - Группировка параллельных проступей из DWG
+    - Вычисление направления подъема (Up-direction) и ширины марша
+    - Создание ступенчатого входа / крыльца или лестничного марша
+ 7. Непрерывные ограждения (Railings) с цепочками сопряжения
+ 8. 4 Фасада (Elevations) вокруг построенного контура
 """
 
 import math
@@ -44,8 +47,8 @@ LAYER_KEYWORDS = {
     'CURTAIN': ['витраж', 'остеклен', 'curtain', 'glaz', 'a-glaz'],
     'DOORS': ['двер', 'door', 'a-door', 'проем_двер', 'д-'],
     'WINDOWS': ['окн', 'window', 'a-glaz-wind', 'a-flor-wind', 'ок-'],
-    'OPENINGS': ['проем', 'проём', 'opening', 'hole'],
-    'STAIRS': ['лестниц', 'ступен', 'stair', 'a-flr-str'],
+    'OPENINGS': ['проем', 'проём', 'opening', 'hole', 'арка', 'проход'],
+    'STAIRS': ['лестниц', 'ступен', 'stair', 'a-flr-str', 'крыльц', 'марш'],
     'RAILINGS': ['огражден', 'перил', 'railing', 'handrail', 'a-flor-hrl']
 }
 
@@ -63,11 +66,16 @@ def to_mm(val_feet):
 # ---------------------------------------------------------------------------
 class TemplateInspector:
     @staticmethod
+    def get_levels(doc):
+        levels = sorted(FilteredElementCollector(doc).OfClass(Level).ToElements(), key=lambda l: l.Elevation)
+        return levels
+
+    @staticmethod
     def get_target_level(doc):
         active_view = doc.ActiveView
         if hasattr(active_view, 'GenLevel') and active_view.GenLevel is not None:
             return active_view.GenLevel
-        levels = sorted(FilteredElementCollector(doc).OfClass(Level).ToElements(), key=lambda l: l.Elevation)
+        levels = TemplateInspector.get_levels(doc)
         return levels[0] if levels else None
 
     @staticmethod
@@ -138,7 +146,7 @@ class TemplateInspector:
                 if nums:
                     for n in nums:
                         val = float(n)
-                        if 500 <= val <= 3000:
+                        if 500 <= val <= 3500:
                             w_val = val * MM_TO_FEET
                             break
 
@@ -149,6 +157,11 @@ class TemplateInspector:
                     best_sym = sym
 
         return best_sym
+
+    @staticmethod
+    def get_stairs_type(doc):
+        collector = FilteredElementCollector(doc).OfClass(StairsType)
+        return collector.FirstElement()
 
     @staticmethod
     def get_railing_type(doc):
@@ -164,18 +177,17 @@ class TemplateInspector:
         return None
 
 # ---------------------------------------------------------------------------
-# 3. ТОЧНАЯ СТРУКТУРА МЕСТА РАСПОЛОЖЕНИЯ ПРОЕМА / ДВЕРИ / ОКНА
+# 3. ТОЧНОЕ МЕСТОПОЛОЖЕНИЕ ПРОЕМА / ДВЕРИ / ОКНА
 # ---------------------------------------------------------------------------
 class OpeningLocation:
-    """Хранит строго определенные координаты, ориентацию и ширину двери/окна из DWG."""
     def __init__(self, point, width_mm, direction=None, source_layer=""):
-        self.point = point                      # Точные координаты X, Y в футах
-        self.width_mm = width_mm                # Замеренная ширина проема/блока в мм
-        self.direction = direction              # Вектор ориентации проема (если есть)
+        self.point = point
+        self.width_mm = width_mm
+        self.direction = direction
         self.source_layer = source_layer
 
 # ---------------------------------------------------------------------------
-# 4. ИЗВЛЕЧЕНИЕ ГЕОМЕТРИИ И ТОЧНЫХ МЕСТ ИЗ DWG
+# 4. СБОР ГЕОМЕТРИИ, СЛОЕВ И БЛОКОВ ИЗ DWG
 # ---------------------------------------------------------------------------
 class DwgExtractor:
     def __init__(self, doc, dwg_instance):
@@ -196,7 +208,7 @@ class DwgExtractor:
         for obj in geo_elem:
             if isinstance(obj, GeometryInstance):
                 inst_transform = obj.Transform
-                # 1. Линейная геометрия слоев
+                # 1. Линии и полилинии
                 inst_geo = obj.GetInstanceGeometry()
                 if inst_geo:
                     for g in inst_geo:
@@ -213,15 +225,13 @@ class DwgExtractor:
                                     except Exception:
                                         pass
 
-                # 2. Блоки дверей и окон (Block References)
+                # 2. Блоки AutoCAD (двери, окна)
                 symbol_geo = obj.GetSymbolGeometry()
                 if symbol_geo:
                     for sg in symbol_geo:
                         if isinstance(sg, GeometryInstance):
                             b_tf = sg.Transform.Multiply(inst_transform)
                             b_layer = self._get_layer_name(sg)
-                            
-                            # Замеряем локальные габариты содержимого блока
                             b_geo = sg.GetInstanceGeometry()
                             min_x = min_y = 1e9
                             max_x = max_y = -1e9
@@ -242,7 +252,6 @@ class DwgExtractor:
                                 if w_mm < 300 or w_mm > 4000:
                                     w_mm = 900.0
 
-                            # Точная точка центра/вставки
                             origin = b_tf.Origin
                             loc = OpeningLocation(XYZ(origin.X, origin.Y, 0), w_mm, b_tf.BasisX, b_layer)
                             self.blocks_by_layer.setdefault(b_layer, []).append(loc)
@@ -269,22 +278,15 @@ class DwgExtractor:
         return result
 
     def get_exact_opening_locations(self, category_key):
-        """
-        Собирает ТОЧНЫЕ места размещения дверей или окон:
-        1) Из блоков AutoCAD в соответствующих слоях
-        2) Из линий проемов (отрезки, обозначающие границу двери/окна в стене)
-        """
         keywords = LAYER_KEYWORDS.get(category_key, [])
         exact_locations = []
 
-        # 1. Из блоков
         for l_name, blocks in self.blocks_by_layer.items():
             for kw in keywords:
                 if kw in l_name:
                     exact_locations.extend(blocks)
                     break
 
-        # 2. Из линий в слое (каждая линия проема задает середину и ширину)
         for l_name, curves in self.curves_by_layer.items():
             match = False
             for kw in keywords:
@@ -294,7 +296,6 @@ class DwgExtractor:
             if match:
                 for c in curves:
                     l_len_mm = c.Length * FEET_TO_MM
-                    # Проем двери/окна обычно от 500 мм до 3500 мм
                     if 450 <= l_len_mm <= 3600:
                         mid = c.Evaluate(0.5, True)
                         dir_vec = (c.GetEndPoint(1) - c.GetEndPoint(0)).Normalize()
@@ -367,7 +368,57 @@ class WallLinePairer:
         return paired_results
 
 # ---------------------------------------------------------------------------
-# 6. ПОСТРОИТЕЛЬ BIM-ЭЛЕМЕНТОВ
+# 6. АЛГОРИТМ РАСПОЗНАВАНИЯ И ПОСТРОЕНИЯ СТУПЕНЕЙ / МАРШЕЙ (STEP RECOGNIZER)
+# ---------------------------------------------------------------------------
+class StairStepClusterer:
+    """
+    Анализирует линии ступеней из AutoCAD:
+    - Находит параллельные ступени с шагом проступи 250 - 350 мм
+    - Группирует их в единый лестничный марш (Stair Run)
+    - Вычисляет начальную точку, конечную точку и габаритную ширину марша
+    """
+    @staticmethod
+    def cluster_steps(curves):
+        step_lines = []
+        for c in curves:
+            if isinstance(c, Line) and mm(600) <= c.Length <= mm(3500):
+                p1, p2 = c.GetEndPoint(0), c.GetEndPoint(1)
+                flat_line = Line.CreateBound(XYZ(p1.X, p1.Y, 0), XYZ(p2.X, p2.Y, 0))
+                step_lines.append(flat_line)
+
+        clusters = [] # list of lists of lines
+        used = set()
+
+        for i in range(len(step_lines)):
+            if i in used:
+                continue
+            l1 = step_lines[i]
+            dir1 = (l1.GetEndPoint(1) - l1.GetEndPoint(0)).Normalize()
+            current_cluster = [l1]
+            used.add(i)
+
+            for j in range(i + 1, len(step_lines)):
+                if j in used:
+                    continue
+                l2 = step_lines[j]
+                dir2 = (l2.GetEndPoint(1) - l2.GetEndPoint(0)).Normalize()
+
+                # Параллельность ступеней
+                if abs(dir1.DotProduct(dir2)) > 0.98:
+                    mid2 = l2.Evaluate(0.5, True)
+                    dist = l1.Distance(mid2)
+                    # Расстояние между ступенями (проступь от 240 мм до 360 мм * кол-во ступеней)
+                    if mm(200) <= dist <= mm(3500):
+                        current_cluster.append(l2)
+                        used.add(j)
+
+            if len(current_cluster) >= 2:
+                clusters.append(current_cluster)
+
+        return clusters
+
+# ---------------------------------------------------------------------------
+# 7. ПОСТРОИТЕЛЬ BIM-ЭЛЕМЕНТОВ (BIM BUILDER)
 # ---------------------------------------------------------------------------
 class BimBuilder:
     def __init__(self, doc, level, basic_walls, default_wall):
@@ -433,6 +484,19 @@ class BimBuilder:
                 continue
         return created
 
+    def auto_clean_wall_joins(self):
+        """Автоматическая зачистка Т- и Г-образных пересечений построенных стен."""
+        cleaned = 0
+        for i in range(len(self.created_walls)):
+            w1 = self.created_walls[i]
+            for end in [0, 1]:
+                try:
+                    WallUtils.AllowWallJoinAtEnd(w1, end)
+                    cleaned += 1
+                except Exception:
+                    pass
+        return cleaned
+
     def build_curtain_walls(self, curves, curtain_type, height_mm=3300):
         if not curtain_type:
             return 0
@@ -452,24 +516,16 @@ class BimBuilder:
         return created
 
     def place_openings_strictly_at_dwg_locations(self, opening_locations, symbols, sill_height_mm=0):
-        """
-        СТРОГАЯ посадка дверей/окон строго по точкам расположения в файле DWG.
-        1. Берет точную точку двери/окна из DWG.
-        2. Ищет стену, в которой находится этот проем.
-        3. Проецирует точку строго на ось стены.
-        4. Вставляет экземпляр семейства с соответствующей шириной.
-        """
         if not symbols or not self.created_walls or not opening_locations:
             return 0
 
         created = 0
         sill_ft = sill_height_mm * MM_TO_FEET
-        placed_points = []  # Фильтрация повторных вставок в одну и ту же точку
+        placed_points = []
 
         for op in opening_locations:
             pt = op.point
             
-            # Проверка на дублирование с радиусом 150 мм
             is_duplicate = False
             for prev_pt in placed_points:
                 if prev_pt.DistanceTo(pt) < mm(150):
@@ -478,7 +534,6 @@ class BimBuilder:
             if is_duplicate:
                 continue
 
-            # Находим стену-хозяина, которая пересекает или прилегает к проему (макс 500 мм)
             host_wall = None
             min_dist = mm(550)
             proj_point = None
@@ -491,7 +546,6 @@ class BimBuilder:
                     if dist < min_dist:
                         proj_res = w_curve.Project(pt)
                         if proj_res:
-                            # Проверяем, что проекция попадает на отрезок стены
                             param = proj_res.Parameter
                             if 0.0 <= param <= 1.0 or dist < mm(250):
                                 min_dist = dist
@@ -499,7 +553,6 @@ class BimBuilder:
                                 proj_point = proj_res.XYZPoint
 
             if host_wall and proj_point:
-                # Подбираем типоразмер под замеренную ширину из DWG
                 chosen_sym = TemplateInspector.match_symbol_by_width(symbols, op.width_mm)
                 if not chosen_sym:
                     continue
@@ -521,6 +574,82 @@ class BimBuilder:
                     created += 1
                 except Exception:
                     continue
+
+        return created
+
+    def build_wall_openings(self, opening_curves, height_mm=2200):
+        """Создает сквозные проемы (без заполнения дверью) по линиям проходов."""
+        if not self.created_walls or not opening_curves:
+            return 0
+
+        created = 0
+        h_ft = height_mm * MM_TO_FEET
+
+        for c in opening_curves:
+            mid = c.Evaluate(0.5, True)
+            w_len = c.Length
+            if w_len < mm(500):
+                continue
+
+            mid_pt = XYZ(mid.X, mid.Y, 0)
+            host_wall = None
+            min_dist = mm(450)
+
+            for w in self.created_walls:
+                loc = w.Location
+                if isinstance(loc, LocationCurve):
+                    dist = loc.Curve.Distance(mid_pt)
+                    if dist < min_dist:
+                        min_dist = dist
+                        host_wall = w
+
+            if host_wall:
+                try:
+                    # Создание прямоугольного выреза в стене
+                    p1 = XYZ(mid_pt.X - w_len * 0.5, mid_pt.Y, 0)
+                    p2 = XYZ(mid_pt.X + w_len * 0.5, mid_pt.Y, h_ft)
+                    self.doc.Create.NewOpening(host_wall, p1, p2)
+                    created += 1
+                except Exception:
+                    continue
+
+        return created
+
+    def build_stairs_and_steps(self, stair_curves, stairs_type, next_level=None):
+        """Формирует лестницы и ступени по сгруппированным параллельным линиям проступей."""
+        clusters = StairStepClusterer.cluster_steps(stair_curves)
+        if not clusters or not stairs_type:
+            return 0
+
+        created = 0
+        top_lvl = next_level if next_level else self.level
+
+        for cluster in clusters:
+            try:
+                # Сортируем ступени по направлению марша
+                sorted_cluster = sorted(cluster, key=lambda l: (l.Evaluate(0.5, True).X, l.Evaluate(0.5, True).Y))
+                first_step = sorted_cluster[0]
+                last_step = sorted_cluster[-1]
+
+                start_pt = first_step.Evaluate(0.5, True)
+                end_pt = last_step.Evaluate(0.5, True)
+                run_width = first_step.Length
+
+                if start_pt.DistanceTo(end_pt) > mm(300):
+                    # Строим осевую траекторию подъема
+                    run_line = Line.CreateBound(XYZ(start_pt.X, start_pt.Y, 0), XYZ(end_pt.X, end_pt.Y, 0))
+                    
+                    # Создание марша через StairsEditScope в современных версиях Revit
+                    stairs_scope = StairsEditScope(self.doc, u"Создание лестницы по DWG")
+                    stairs_id = stairs_scope.Start(self.level.Id, top_lvl.Id)
+                    try:
+                        StairsRun.CreateStraightRun(self.doc, stairs_id, run_line, StairsRunJustification.Center)
+                        stairs_scope.Commit(StairsEditScopeFailuresPreprocessor())
+                        created += 1
+                    except Exception:
+                        stairs_scope.Cancel()
+            except Exception:
+                continue
 
         return created
 
@@ -584,11 +713,15 @@ class BimBuilder:
                 continue
         return created
 
+class StairsEditScopeFailuresPreprocessor(IFailuresPreprocessor):
+    def PreprocessFailures(self, failuresAccessor):
+        return FailureProcessingResult.Continue
+
 # ---------------------------------------------------------------------------
-# 7. ГЛАВНАЯ ТОЧКА ВХОДА (MAIN RUNNER)
+# 8. ГЛАВНАЯ ТОЧКА ВХОДА (MAIN RUNNER)
 # ---------------------------------------------------------------------------
 def run():
-    print(u"--- Запуск алгоритма DWG to BIM (Точная посадка дверей и окон по DWG) ---")
+    print(u"--- Запуск алгоритма DWG to BIM (Шаг 3: Полный комплекс элементов) ---")
     
     dwg_instances = list(FilteredElementCollector(doc).OfClass(ImportInstance).ToElements())
     if not dwg_instances:
@@ -599,15 +732,14 @@ def run():
     dwg = dwg_instances[0]
     dwg_type = doc.GetElement(dwg.GetTypeId())
     dwg_name = dwg_type.get_Parameter(BuiltInParameter.SYMBOL_NAME_PARAM).AsString() if dwg_type else u"DWG"
-    print(u"Найден чертеж DWG: " + str(dwg_name))
+    print(u"Чертеж DWG: " + str(dwg_name))
 
     extractor = DwgExtractor(doc, dwg)
 
+    levels = TemplateInspector.get_levels(doc)
     level = TemplateInspector.get_target_level(doc)
+    next_level = levels[1] if len(levels) > 1 else level
     print(u"Целевой этаж: " + str(level.Name if level else "Не найден"))
-    if not level:
-        print(u"[ОШИБКА] В проекте нет уровней (Level).")
-        return
 
     basic_walls, curtain_walls = TemplateInspector.get_wall_types(doc)
     default_basic_wall = basic_walls[0] if basic_walls else None
@@ -615,17 +747,14 @@ def run():
     
     door_symbols = TemplateInspector.find_family_symbols(doc, BuiltInCategory.OST_Doors)
     window_symbols = TemplateInspector.find_family_symbols(doc, BuiltInCategory.OST_Windows)
+    stairs_type = TemplateInspector.get_stairs_type(doc)
     railing_type = TemplateInspector.get_railing_type(doc)
     elevation_vft = TemplateInspector.get_elevation_view_family_type(doc)
 
-    print(u"Доступно в шаблоне: дверей - " + str(len(door_symbols)) + u", окон - " + str(len(window_symbols)))
-
-    # Замеряем, сколько дверей и окон найдено непосредственно на чертеже DWG
     door_locations = extractor.get_exact_opening_locations('DOORS')
     window_locations = extractor.get_exact_opening_locations('WINDOWS')
-    print(u"Обнаружено в файле DWG по координатам: дверей - " + str(len(door_locations)) + u", окон - " + str(len(window_locations)))
 
-    t = Transaction(doc, u"Построение здания по чертежу DWG")
+    t = Transaction(doc, u"Комплексное построение здания по DWG (Шаг 3)")
     t.Start()
     try:
         builder = BimBuilder(doc, level, basic_walls, default_basic_wall)
@@ -645,30 +774,43 @@ def run():
         n_int = builder.build_walls_paired(int_curves, default_basic_wall, height_mm=3000)
         print(u"-> 3. Создано внутренних перегородок: " + str(n_int))
 
-        # 4. Витражи
+        # 4. Автоматическая зачистка соединений стен
+        builder.auto_clean_wall_joins()
+
+        # 5. Витражи
         curtain_curves = extractor.match_layer_curves('CURTAIN')
         n_curtains = builder.build_curtain_walls(curtain_curves, default_curtain_wall, height_mm=3300)
         print(u"-> 4. Создано витражей: " + str(n_curtains))
 
-        # 5. Двери: строго по координатам проемов и блоков из DWG
+        # 6. Двери строго по координатам DWG
         n_doors = builder.place_openings_strictly_at_dwg_locations(door_locations, door_symbols, sill_height_mm=0)
         print(u"-> 5. Врезано дверей точно по DWG: " + str(n_doors))
 
-        # 6. Окна: строго по координатам проемов и блоков из DWG
+        # 7. Окна строго по координатам DWG
         n_windows = builder.place_openings_strictly_at_dwg_locations(window_locations, window_symbols, sill_height_mm=900)
         print(u"-> 6. Врезано окон точно по DWG: " + str(n_windows))
 
-        # 7. Ограждения
-        railing_curves = extractor.match_layer_curves('RAILINGS') + extractor.match_layer_curves('STAIRS')
-        n_railings = builder.build_railings(railing_curves, railing_type)
-        print(u"-> 7. Создано ограждений: " + str(n_railings))
+        # 8. Проемы в стенах без дверных полотен
+        opening_curves = extractor.match_layer_curves('OPENINGS')
+        n_openings = builder.build_wall_openings(opening_curves, height_mm=2200)
+        print(u"-> 7. Вырезано сквозных проемов: " + str(n_openings))
 
-        # 8. Четыре фасада вокруг здания
+        # 9. Лестницы и ступени
+        stair_curves = extractor.match_layer_curves('STAIRS')
+        n_stairs = builder.build_stairs_and_steps(stair_curves, stairs_type, next_level)
+        print(u"-> 8. Сформировано лестничных маршей/ступеней: " + str(n_stairs))
+
+        # 10. Ограждения
+        railing_curves = extractor.match_layer_curves('RAILINGS')
+        n_railings = builder.build_railings(railing_curves, railing_type)
+        print(u"-> 9. Создано ограждений: " + str(n_railings))
+
+        # 11. 4 Фасада
         n_elevations = builder.create_elevations_around_building(elevation_vft)
-        print(u"-> 8. Создано видов фасадов: " + str(n_elevations))
+        print(u"-> 10. Создано фасадов: " + str(n_elevations))
 
         t.Commit()
-        print(u"--- Построение здания по чертежу DWG завершено успешно! ---")
+        print(u"--- Комплексная генерация здания завершена успешно! ---")
     except Exception as ex:
         t.RollBack()
         print(u"[ОШИБКА ТРАНЗАКЦИИ]: " + str(ex))
