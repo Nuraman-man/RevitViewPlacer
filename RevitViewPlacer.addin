@@ -38,4 +38,14 @@
     <VendorId>RevitViewPlacer</VendorId>
     <VendorDescription>RevitViewPlacer</VendorDescription>
   </AddIn>
+  <AddIn Type="Command">
+    <Name>Python Script Runner (IronPython / pyRevit)</Name>
+    <Assembly>RevitViewPlacer\RevitViewPlacer.dll</Assembly>
+    <AddInId>9E4B7C18-6D25-4A82-B931-2F508E4D1C63</AddInId>
+    <FullClassName>RevitViewPlacer.PythonScriptRunnerCommand</FullClassName>
+    <Text>Python Скрипт (pyRevit / RevitPythonShell)</Text>
+    <Description>Интерактивное окно запуска Python-скриптов (IronPython) с доступом к Revit API (__revit__, uidoc, doc).</Description>
+    <VendorId>RevitViewPlacer</VendorId>
+    <VendorDescription>RevitViewPlacer</VendorDescription>
+  </AddIn>
 </RevitAddIns>

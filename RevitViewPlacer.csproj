@@ -7,7 +7,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>disable</ImplicitUsings>
     <UseWPF>true</UseWPF>
-    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
     <ResolveAssemblyWarnOrErrorOnTargetArchitectureMismatch>None</ResolveAssemblyWarnOrErrorOnTargetArchitectureMismatch>
     <NoWarn>$(NoWarn);MSB3277</NoWarn>
     <RevitInstallDir Condition="'$(RevitInstallDir)' == ''">C:\Program Files\Autodesk\Revit 2026</RevitInstallDir>
@@ -30,16 +30,23 @@
     </Reference>
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="IronPython" Version="3.4.2" />
+  </ItemGroup>
+
   <Target Name="DeployToRevitAddins" AfterTargets="Build" Condition="'$(DeployAddin)' != 'false'">
     <PropertyGroup>
       <RevitAddinsDir>$(AppData)\Autodesk\Revit\Addins\2026</RevitAddinsDir>
     </PropertyGroup>
+    <ItemGroup>
+      <OutputDlls Include="$(TargetDir)*.dll" />
+    </ItemGroup>
     <MakeDir Directories="$(RevitAddinsDir)\RevitViewPlacer" />
     <Copy SourceFiles="$(ProjectDir)RevitViewPlacer.addin" DestinationFolder="$(RevitAddinsDir)" SkipUnchangedFiles="false" ContinueOnError="true" />
     <Copy SourceFiles="$(ProjectDir)Лист (Форма3).rfa" DestinationFolder="$(RevitAddinsDir)\RevitViewPlacer" SkipUnchangedFiles="false" ContinueOnError="true" />
     <Copy SourceFiles="$(ProjectDir)Лист_(Форма3)без_надписи.rfa" DestinationFolder="$(RevitAddinsDir)\RevitViewPlacer" SkipUnchangedFiles="false" ContinueOnError="true" />
     <Copy SourceFiles="$(ProjectDir)ADSK_Марка_Помещение_ДваЗначения.rfa" DestinationFolder="$(RevitAddinsDir)\RevitViewPlacer" SkipUnchangedFiles="false" ContinueOnError="true" />
-    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(RevitAddinsDir)\RevitViewPlacer" SkipUnchangedFiles="false" ContinueOnError="true" />
+    <Copy SourceFiles="@(OutputDlls)" DestinationFolder="$(RevitAddinsDir)\RevitViewPlacer" SkipUnchangedFiles="false" ContinueOnError="true" />
   </Target>
 
 </Project>

@@ -43,7 +43,7 @@ Copy-Item (Join-Path $templateDir "Удалить_Плагин.cmd") $setupDir
 Copy-Item (Join-Path $templateDir "Инструкция.txt") $setupDir
 
 Copy-Item (Join-Path $rootDir "RevitViewPlacer.addin") $filesDir
-Copy-Item (Join-Path $rootDir "bin\Release\net8.0-windows\RevitViewPlacer.dll") $pluginSubDir
+Copy-Item (Join-Path $rootDir "bin\Release\net8.0-windows\*.dll") $pluginSubDir
 Copy-Item (Join-Path $rootDir "Лист (Форма3).rfa") $pluginSubDir
 Copy-Item (Join-Path $rootDir "Лист_(Форма3)без_надписи.rfa") $pluginSubDir
 Copy-Item (Join-Path $rootDir "ADSK_Марка_Помещение_ДваЗначения.rfa") $pluginSubDir

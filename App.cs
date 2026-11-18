@@ -13,6 +13,8 @@ namespace RevitViewPlacer
         {
             try
             {
+                PythonScriptRunnerCommand.EnsureAssemblyResolverRegistered();
+
                 try
                 {
                     application.CreateRibbonTab(TabName);
@@ -70,11 +72,21 @@ namespace RevitViewPlacer
                     ToolTip = "Оформляет активный вид по ГОСТ 21.501-93: расставляет высотные отметки и линию земли внутри вида, убирает мусор и настраивает подрезку."
                 };
 
+                PushButtonData pythonRunnerBtnData = new PushButtonData(
+                    name: "PythonScriptRunnerButton",
+                    text: "Python Скрипт\n(pyRevit / API)",
+                    assemblyName: assemblyPath,
+                    className: typeof(PythonScriptRunnerCommand).FullName!)
+                {
+                    ToolTip = "Открывает интерактивную консоль IronPython для вставки и запуска Python-скриптов (формата pyRevit / RevitPythonShell) с глобальными переменными __revit__, uidoc и doc."
+                };
+
                 panel.AddItem(placeViewsBtnData);
                 panel.AddItem(sitePlanBtnData);
                 panel.AddItem(roomTagBtnData);
                 panel.AddItem(renumberRoomsBtnData);
                 panel.AddItem(applyGostViewStyleBtnData);
+                panel.AddItem(pythonRunnerBtnData);
                 return Result.Succeeded;
             }
             catch (Exception ex)
